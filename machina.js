@@ -1,6 +1,14 @@
 (function(define) {
 
 define(['./support/when'], function(when) {
+    
+    function noop() {}
+    
+    function rejected(reason) {
+        var d = when.defer();
+        d.reject(reason);
+        return d.promise;
+    }
 
     function createState(name, stateDef, transition) {
         var state, transitions;
@@ -28,7 +36,7 @@ define(['./support/when'], function(when) {
      * @param stateTable {Object} the state and transition definitions
      */
     function Machina(stateTable) {
-        var machina, stateDefs, states, state;
+        var machina, stateDefs, states, state, initial;
 
         machina = this;
         stateDefs = stateTable.states;
@@ -57,37 +65,47 @@ define(['./support/when'], function(when) {
             }
         }
 
-        machina._proto = {
-            state: states[stateTable.initial],
+        initial = states[stateTable.start];
+
+        machina.blueprint = {
+            state: initial,
 
             transition: function(event) {
 
-                function applyTransition(state, event) {
-                    var transition = state[event];
-                    if (transition) {
-                        return transition();
-                    } else {
-                        throw event;
-                    }
-                }
-
-                var self, onResolve, promise;
+                var self, restoreTransition, onResolve, promise;
 
                 self = this;
 
+                restoreTransition = this.transition;
+                this.transition = noop;
+
+                function applyTransition(state, event) {
+                    var transition = state[event];
+                    if (typeof transition === 'function') {
+                        return transition();
+                    } else {
+                        return rejected(event);
+                    }
+                }
+                
+                function completeTransition(val) {
+                    self.transition = self.state.isFinal
+                        ? rejected
+                        : restoreTransition;
+
+                    return val;
+                }
+
                 onResolve = function(endState) {
                     self.state = endState;
-                    if (endState.isFinal) {
-                        self.transition = function() {};
-                    }
+                    return completeTransition(self);
                 };
 
                 promise = typeof event === 'string'
                     ? applyTransition(this.state, event)
                     : when.reduce(event, applyTransition, this.state);
 
-                return when(promise, onResolve);
-
+                return when(promise, onResolve, completeTransition);
             },
             
             isFinal: function() {
@@ -96,15 +114,14 @@ define(['./support/when'], function(when) {
         };
     }
 
-    function Run() {
-    }
+    function Run() {}
 
     Machina.prototype = {
         /**
          * Starts an instance of this state machine
          */
         start: function() {
-            Run.prototype = this._proto;
+            Run.prototype = this.blueprint;
             return new Run();
         },
 
