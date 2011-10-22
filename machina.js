@@ -1,10 +1,26 @@
 (function(define) {
 
 define(['./support/when'], function(when) {
-    function rejected(/** {Object}? */reason) {
-        var rejected = when.defer();
-        rejected.reject(reason);
-        rejected = rejected.promise;
+
+    function createState(name, stateDef, transition) {
+        var state, transitions;
+
+        transitions = stateDef.transitions;
+        state = {
+            name: name,
+            isFinal: !transitions || !!stateDef.isFinal
+        };
+
+        if(transitions) {
+            for(var event in transitions) {
+                if(transitions.hasOwnProperty(event))
+                state[event] = function() {
+                    return transition(event, transitions[event]);
+                }
+            }
+        }
+
+        return state;
     }
 
     /**
@@ -12,64 +28,76 @@ define(['./support/when'], function(when) {
      * @param stateTable {Object} the state and transition definitions
      */
     function Machina(stateTable) {
-        var machine, states, state, _transition;
+        var machina, stateDefs, states, state;
 
-        machine = this;
-        states = stateTable.states;
-        state = states[stateTable.initial];
-        
-        if(!state) {
-            for(var s in states) {
-                state = states[s];
-                break;
-            }
-        }
-        
-        function transition(event, data) {
-            return _transition(event, data);
-        }
+        machina = this;
+        stateDefs = stateTable.states;
+        states = {};
 
-        _transition = function(event, data) {
-            var to;
-
-            to = state.transitions[event];
-
-            return to && states[to] ? doTransition(event, to, data) : rejected(event);
-        };
-
-        function isFinal(state) {
-            return !state.transitions;
-        }
-
-        function doTransition(event, to, data) {
-            var from, deferred;
-
-            from = state;
-            state = states[to];
+        function transition(event, toName) {
+            var deferred, to;
 
             deferred = when.defer();
+            to = states[toName];
 
-            if(isFinal(state)) {
-                _transition = function() {
-                    return rejected();
-                }
+            if(to) {
+                deferred.resolve(to);
+
+            } else {
+                deferred.reject(event);
+
             }
-
-            deferred.resolve({ event: event, from: from, to: state, data: data });
 
             return deferred.promise;
         }
 
-        machine._proto = {
-            transition: transition,
-            isFinal: function() {
-                return isFinal(state);
+        for(state in stateDefs) {
+            if(stateDefs.hasOwnProperty(state)) {
+                states[state] = createState(state, stateDefs[state], transition);
+            }
+        }
+
+        machina._proto = {
+            state: states[stateTable.initial],
+
+            transition: function(event) {
+
+                function applyTransition(state, event) {
+                    var transition = state[event];
+                    if (transition) {
+                        return transition();
+                    } else {
+                        throw event;
+                    }
+                }
+
+                var self, onResolve, promise;
+
+                self = this;
+
+                onResolve = function(endState) {
+                    self.state = endState;
+                    if (endState.isFinal) {
+                        self.transition = function() {};
+                    }
+                };
+
+                promise = typeof event === 'string'
+                    ? applyTransition(this.state, event)
+                    : when.reduce(event, applyTransition, this.state);
+
+                return when(promise, onResolve);
+
             },
-            state: function() { return state; }
+            
+            isFinal: function() {
+                return this.state.isFinal;
+            }
         };
     }
 
-    function Run() {}
+    function Run() {
+    }
 
     Machina.prototype = {
         /**
@@ -81,30 +109,16 @@ define(['./support/when'], function(when) {
         },
 
         accepts: function(events) {
-            function applyTransition(run, event, i, count) {
-                return when(run.transition(event), function() {
-                    var isFinal, isLast;
-
-                    isFinal = run.isFinal();
-                    isLast = i === (count - 1);
-
-                    if (!isFinal && isLast || isFinal && !isLast) {
-                        throw event;
-                    }
-
-                    return run;
-                });
-            }
-
-            return when.reduce(events, applyTransition, this.start());
+            return this.start().transition(events);
         }
     };
 
     return Machina;
 });
-
 }(typeof define === 'function' && define.amd
     ? define
-    : function(deps, factory) { module.exports = factory.apply(this, deps.map(require)); }
+    : typeof require === 'function'
+        ? function(deps, factory) { module.exports = factory.apply(this, deps.map(require)); }
+        : function(deps, factory) { this.Machina = factory(this.when); }
 ));
 
