@@ -36,9 +36,8 @@ define(['./support/when'], function(when) {
      * @param stateTable {Object} the state and transition definitions
      */
     function Machina(stateTable) {
-        var machina, stateDefs, states, state, initial;
+        var blueprint, stateDefs, states, state;
 
-        machina = this;
         stateDefs = stateTable.states;
         states = {};
 
@@ -65,10 +64,8 @@ define(['./support/when'], function(when) {
             }
         }
 
-        initial = states[stateTable.start];
-
-        machina.blueprint = {
-            state: initial,
+        blueprint = {
+            state: states[stateTable.start],
 
             transition: function(event) {
 
@@ -112,19 +109,16 @@ define(['./support/when'], function(when) {
                 return this.state.isFinal;
             }
         };
+        
+        this.start = function() {
+            Run.prototype = blueprint;
+            return new Run();
+        }
     }
 
     function Run() {}
 
     Machina.prototype = {
-        /**
-         * Starts an instance of this state machine
-         */
-        start: function() {
-            Run.prototype = this.blueprint;
-            return new Run();
-        },
-
         accepts: function(events) {
             return this.start().transition(events);
         }
