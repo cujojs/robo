@@ -47,7 +47,12 @@
 
         machine = new Machina(table);
 
-        console.log("MACHINE", machine);
+        machine.on('one', { leave: function() { console.log("leave one"); } });
+        machine.on('two', function() { console.log("enter two"); });
+        machine.on('gotoTwo', {
+            start: function() { console.log("START gotoTwo"); },
+            end: function() { console.log('END gotoTwo'); }
+        });
 
         var run1 = machine.start();
         var run2 = machine.start();
@@ -56,7 +61,7 @@
                 .then(success, fail);
 
         run1 = machine.start();
-
+        
         run1.transition('gotoTwo')
                 .then(function(r) { return r.transition('go'); })
                 .then(success, fail);
