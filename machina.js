@@ -69,12 +69,16 @@ define(['./support/when'], function(when) {
 
             transition: function(event) {
 
-                var self, restoreTransition, onResolve, promise;
+                var self, origTransition, onResolve, promise;
 
                 self = this;
 
-                restoreTransition = this.transition;
-                this.transition = noop;
+                origTransition = this.transition;
+                this.transition = function(event) {
+                    return when(promise, function() {
+                        return self.transition(event);
+                    });
+                };
 
                 function applyTransition(state, event) {
                     var transition = state[event];
@@ -88,7 +92,7 @@ define(['./support/when'], function(when) {
                 function completeTransition(val) {
                     self.transition = self.state.isFinal
                         ? rejected
-                        : restoreTransition;
+                        : origTransition;
 
                     return val;
                 }
@@ -102,7 +106,9 @@ define(['./support/when'], function(when) {
                     ? applyTransition(this.state, event)
                     : when.reduce(event, applyTransition, this.state);
 
-                return when(promise, onResolve, completeTransition);
+                promise = when(promise, onResolve, completeTransition);
+
+                return promise;
             },
             
             isFinal: function() {

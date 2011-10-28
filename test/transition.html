@@ -42,7 +42,7 @@
         }
         
         function expectedError(e) {
-            console.log('EXPECTED ERROR', e);
+            console.log('OK expected error', e);
         }
 
         machine = new Machina(table);
@@ -67,17 +67,26 @@
                 .then(function(r) { return run2.transition('go'); })
                 .then(function(r) {
                     console.log(run1.state);
-                    console.log(run2.state);                    
+                    console.log(run2.state);
                 });
-        
+
         run1 = machine.start();
-        
+
         run1.transition('error').then(fail, expectedError);
 
         machine.accepts(['go', 'go']).then(success, fail, progress);
 
         run1 = machine.start();
         run1.transition(['go', 'go', 'foo']).then(fail, expectedError, progress);
+
+        run1 = machine.start();
+        run1.transition('go');
+        run1.transition('go').then(success, fail);
+
+        run1 = machine.start();
+        run1.transition('go').then(success, fail);
+        run1.transition('go').then(success, fail);
+        run1.transition('go').then(fail, expectedError);
     </script>
 </head>
 <body>
