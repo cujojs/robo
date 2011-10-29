@@ -51,12 +51,10 @@
         var run1 = machine.start();
         var run2 = machine.start();
 
-        run1.on('one', { leave: function() { console.log("leave one"); } });
+        run1.on('leave:one', function() { console.log("leave one"); });
         run1.on('two', function() { console.log("enter two"); });
-        run1.on('gotoTwo', {
-            start: function() { console.log("START gotoTwo"); },
-            end: function() { console.log('END gotoTwo'); }
-        });
+        run1.on('start:gotoTwo', function() { console.log("START gotoTwo"); });
+        run1.on('gotoTwo', function() { console.log('END gotoTwo'); });
 
         run1.transition('gotoTwo')
                 .then(success, fail);

@@ -86,31 +86,12 @@ define(['./Evented', './support/when'], function(Evented, when) {
             
             states: states,
             
-            on: function(what, actions) {
-                var start, end;
-                
-                if(states[what]) {
-                    if(typeof actions === 'function') {
-                        end = actions;
-                    } else {
-                        start = actions.leave;
-                        end = actions.enter;
-                    }
-
-                    start && on.call(this, 'leave:'+what, start);
-                    end && on.call(this, 'enter:'+what, end);
-                } else {
-                    if(typeof actions === 'function') {
-                        end = actions;
-                    } else {
-                        start = actions.start;
-                        end = actions.end;
-                    }
-
-                    start && on.call(this, 'start:'+what, start);
-                    end && on.call(this, 'end:'+what, end);
+            on: function(event, handler) {
+                if(event.indexOf(':') < 0) {
+                    event = (states[event] ? 'enter:' : 'end:') + event;
                 }
-
+                
+                on.call(this, event, handler);
             },
 
             emit: Evented.prototype.emit,
