@@ -2,6 +2,7 @@
 <html>
 <head>
     <script src="../support/when/when.js"></script>
+    <script src="../Evented.js"></script>
     <script src="../machina.js"></script>
     <script>
         var table, machine;
@@ -47,21 +48,21 @@
 
         machine = new Machina(table);
 
-        machine.on('one', { leave: function() { console.log("leave one"); } });
-        machine.on('two', function() { console.log("enter two"); });
-        machine.on('gotoTwo', {
+        var run1 = machine.start();
+        var run2 = machine.start();
+
+        run1.on('one', { leave: function() { console.log("leave one"); } });
+        run1.on('two', function() { console.log("enter two"); });
+        run1.on('gotoTwo', {
             start: function() { console.log("START gotoTwo"); },
             end: function() { console.log('END gotoTwo'); }
         });
-
-        var run1 = machine.start();
-        var run2 = machine.start();
 
         run1.transition('gotoTwo')
                 .then(success, fail);
 
         run1 = machine.start();
-        
+
         run1.transition('gotoTwo')
                 .then(function(r) { return r.transition('go'); })
                 .then(success, fail);
