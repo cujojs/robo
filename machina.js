@@ -88,7 +88,7 @@ define(['./Evented', './support/when'], function(Evented, when) {
             
             on: function(event, handler) {
                 if(event.indexOf(':') < 0) {
-                    event = (states[event] ? 'enter:' : 'end:') + event;
+                    event = (states[event] ? 'enter:' : 'start:') + event;
                 }
                 
                 on.call(this, event, handler);
