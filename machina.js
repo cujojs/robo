@@ -2,6 +2,10 @@
 
 define(['./Evented', './support/when'], function(Evented, when) {
 
+    var isArray = Array.isArray || function(it) {
+        return it && (it instanceof Array || typeof it === 'array');
+    };
+
     function rejected(reason) {
         var d = when.defer();
         d.reject(reason);
@@ -29,7 +33,8 @@ define(['./Evented', './support/when'], function(Evented, when) {
         return state;
     }
 
-    function Run(emitter) {
+    function Run(start, emitter) {
+        this.state = start;
         this.emitter = emitter;
     }
 
@@ -79,8 +84,6 @@ define(['./Evented', './support/when'], function(Evented, when) {
         }
         
         blueprint = {
-            state: states[stateTable.start],
-            
             states: states,
             
             available: function() {
@@ -144,7 +147,11 @@ define(['./Evented', './support/when'], function(Evented, when) {
                     return completeTransition();
                 }
 
-                return when(applyTransition(from, event), onResolve, completeTransition);
+                promise = isArray(event)
+                    ? when.reduce(event, applyTransition, from).then(onResolve, completeTransition)
+                    : when(applyTransition(from, event), onResolve, completeTransition);
+
+                return promise;
             },
 
             isFinal: function() {
@@ -152,9 +159,16 @@ define(['./Evented', './support/when'], function(Evented, when) {
             }
         };
         
-        this.start = function(eventEmitter) {
+        this.start = function(start, eventEmitter) {
+            if (typeof start === 'function') {
+                eventEmitter = start;
+                start = states[stateTable.start];
+            } else {
+                start = states[start || stateTable.start];
+            }
+
             Run.prototype = blueprint;
-            return new Run(eventEmitter);
+            return new Run(start, eventEmitter);
         };
 
     }
@@ -163,9 +177,10 @@ define(['./Evented', './support/when'], function(Evented, when) {
         accepts: function(events) {
             var run = this.start();
             
-            return when.reduce(events, function(current, next) {
-                return run.transition(next);
-            });
+            return run.transition(events).then(
+                function(run) {
+                    return run.isFinal() ? run : rejected(run)
+                });
         }
     };
 
