@@ -1,6 +1,6 @@
-var Machina, table, machine;
+var Machine, table, machine;
 
-Machina = require('../machina');
+Machine = require('../machina');
 table = {
     start:'one',
     states:{
@@ -40,7 +40,7 @@ function expectedError(e) {
     console.log('EXPECTED ERROR', e);
 }
 
-machine = new Machina(table);
+machine = new Machine(table);
 
 console.log("MACHINE", machine);
 

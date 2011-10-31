@@ -48,16 +48,12 @@ define(['./support/when'], function(when) {
     function Evented() {
         var self = this;
 
-        this.listener = {
-            on: function(event, handler) {
-                return on.call(self, event, handler);
-            }
+        this.listener = function(event, handler) {
+            return on.call(self, event, handler);
         };
         
-        this.emitter = {
-            emit: function() {
-                return emit.apply(self, arguments);
-            }
+        this.emitter = function() {
+            return emit.apply(self, arguments);
         };
     }
 

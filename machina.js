@@ -29,13 +29,15 @@ define(['./Evented', './support/when'], function(Evented, when) {
         return state;
     }
 
-    function Run() {}
+    function Run(emitter) {
+        this.emitter = emitter;
+    }
 
     /**
      * Creates a state machine
      * @param stateTable {Object} the state and transition definitions
      */
-    function Machina(stateTable) {
+    function Machine(stateTable) {
         var self, blueprint, stateDefs, states, state;
 
         self = this;
@@ -45,22 +47,19 @@ define(['./Evented', './support/when'], function(Evented, when) {
         function transition(from, event, to, emitter) {
 
             function transitionStart(data) {
-                return emitter.emit('start:'+event, data);
+                return emitter ? emitter(event + ":start", data) : data;
             }
 
             function leaveFrom(data) {
-//                return data;
-                return emitter.emit('leave:'+from.name, data);
+                return emitter ? emitter(from.name+':leave', data) : data;
             }
 
             function enterTo(data) {
-//                return data;
-                return emitter.emit('enter:'+to.name, data);
+                return emitter ? emitter(to.name+':enter', data) : data;
             }
 
             function transitionEnd(data) {
-//                return to;
-                return when(emitter.emit('end:'+event, data), function() { return to; });
+                return emitter ? emitter(event+':end', data) : data;
             }
 
             var steps = [transitionStart, leaveFrom, enterTo, transitionEnd];
@@ -68,7 +67,7 @@ define(['./Evented', './support/when'], function(Evented, when) {
                 ? when.reduce(steps,
                     function(val, nextStep) {
                         return nextStep(val);
-                    })
+                    }).then(function() { return to; })
                 : rejected(event);
 
         }
@@ -79,23 +78,29 @@ define(['./Evented', './support/when'], function(Evented, when) {
             }
         }
         
-        var on = Evented.prototype.on;
-
         blueprint = {
             state: states[stateTable.start],
             
             states: states,
             
-            on: function(event, handler) {
-                if(event.indexOf(':') < 0) {
-                    event = (states[event] ? 'enter:' : 'start:') + event;
+            available: function() {
+                var available, transitions, transition;
+                
+                available = [];
+                transitions = this.state.transitions;
+                
+                for(var event in transitions) {
+                    transition = transitions[event];
+
+                    // TODO: Add conditional transitions
+//                    if(!transition.condition || transition.condition()) {
+                        available.push(event);
+//                    }
                 }
                 
-                on.call(this, event, handler);
+                return available;
             },
-
-            emit: Evented.prototype.emit,
-
+            
             transition: function(event) {
 
                 var self, from, origTransition, promise;
@@ -110,13 +115,25 @@ define(['./Evented', './support/when'], function(Evented, when) {
                     });
                 };
 
-                function completeTransition(val) {
+                function completeTransition() {
                     self.transition = origTransition;
-                    return val;
+                    return self;
                 }
 
                 function applyTransition(from, event) {
-                    var to = from.transitions[event];
+                    var available, transitions, to;
+
+                    available = self.available();
+                    transitions = from.transitions;
+
+                    if(event) {
+                        if (available.indexOf(event) >= 0) {
+                            to = transitions[event];
+                        }
+                    } else if (available.length === 1) {
+                        to = transitions[available[0]];
+                    }
+
                     return to
                         ? transition(from, event, states[to], self.emitter)
                         : rejected(event);
@@ -124,16 +141,10 @@ define(['./Evented', './support/when'], function(Evented, when) {
 
                 function onResolve(endState) {
                     self.state = endState;
-                    return completeTransition(self);
+                    return completeTransition();
                 }
 
-                promise = typeof event === 'string'
-                    ? applyTransition(from, event)
-                    : when.reduce(event, applyTransition, from);
-
-                promise = when(promise, onResolve, completeTransition);
-
-                return promise;
+                return when(applyTransition(from, event), onResolve, completeTransition);
             },
 
             isFinal: function() {
@@ -141,29 +152,29 @@ define(['./Evented', './support/when'], function(Evented, when) {
             }
         };
         
-        this.start = function() {
+        this.start = function(eventEmitter) {
             Run.prototype = blueprint;
-            var run = new Run();
-            
-            Evented.call(run);
-            
-            return run;
+            return new Run(eventEmitter);
         };
 
     }
 
-    Machina.prototype = {
+    Machine.prototype = {
         accepts: function(events) {
-            return this.start().transition(events);
+            var run = this.start();
+            
+            return when.reduce(events, function(current, next) {
+                return run.transition(next);
+            });
         }
     };
 
-    return Machina;
+    return Machine;
 });
 }(typeof define === 'function' && define.amd
     ? define
     : typeof require === 'function'
         ? function(deps, factory) { module.exports = factory.apply(this, deps.map(require)); }
-        : function(deps, factory) { this.Machina = factory(this.Evented, this.when); }
+        : function(deps, factory) { this.Machine = factory(this.Evented, this.when); }
 ));
 
