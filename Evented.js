@@ -25,20 +25,18 @@ define(['./support/when'], function(when) {
         };
     }
     
-    function emit(event) {
-        var events, handlers, args, result;
-
+    function emit(event, data) {
+        var events, handlers, result;
         events = this._evented;
 
         if (events) {
             handlers = events[event];
 
             if (handlers) {
-                args = arguments.length > 1 ? Array.prototype.slice.call(arguments, 1) : [];
-
                 result = when.reduce(handlers, function(val, handler) {
-                    handler.apply(undef, args);
-                });
+                    handler(val);
+                    return val;
+                }, data);
             }
         }
 

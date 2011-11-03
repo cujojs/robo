@@ -71,10 +71,31 @@ define(['./Evented', './support/when'], function(Evented, when) {
             return to
                 ? when.reduce(steps,
                     function(val, nextStep) {
-                        return nextStep(val);
-                    }).then(function() { return to; })
+                        var next = nextStep(val);
+                        return next;
+                    }, { from: from, to: to, event: event }).then(function() { return to; })
                 : rejected(event);
 
+        }
+        
+        function available(state) {
+            var available, transitions;//, transition;
+            
+            available = [];
+            transitions = state.transitions;
+            
+            for(var event in transitions) {
+                if(transitions.hasOwnProperty(event)) {
+//                        transition = transitions[event];
+
+                    // TODO: Add conditional transitions
+//                        if (!transition.condition || transition.condition()) {
+                        available.push(event);
+//                        }
+                }
+            }
+            
+            return available;
         }
 
         for(state in stateDefs) {
@@ -87,23 +108,7 @@ define(['./Evented', './support/when'], function(Evented, when) {
             states: states,
             
             available: function() {
-                var available, transitions;//, transition;
-                
-                available = [];
-                transitions = this.state.transitions;
-                
-                for(var event in transitions) {
-                    if(transitions.hasOwnProperty(event)) {
-//                        transition = transitions[event];
-
-                        // TODO: Add conditional transitions
-//                        if (!transition.condition || transition.condition()) {
-                            available.push(event);
-//                        }
-                    }
-                }
-                
-                return available;
+                return available(this.state);
             },
             
             transition: function(event) {
@@ -126,17 +131,17 @@ define(['./Evented', './support/when'], function(Evented, when) {
                 }
                 
                 function nextState(from, event) {
-                    var available, transitions, to;
+                    var allowed, transitions, to;
 
-                    available = self.available();
+                    allowed = available(from);
                     transitions = from.transitions;
 
                     if(event) {
-                        if (available.indexOf(event) >= 0) {
+                        if (allowed.indexOf(event) >= 0) {
                             to = transitions[event];
                         }
-                    } else if (available.length === 1) {
-                        to = transitions[available[0]];
+                    } else if (allowed.length === 1) {
+                        to = transitions[allowed[0]];
                     }
                     
                     return to;
@@ -146,18 +151,15 @@ define(['./Evented', './support/when'], function(Evented, when) {
                     var to = nextState(from, event);
 
                     return to
-                        ? transition(from, event, states[to], self.emitter)
+                        ? transition(from, event, states[to], self.emitter).then(
+                            function(to) { self.state = to; }
+                        )
                         : rejected(event);
                 }
 
-                function onResolve(endState) {
-                    self.state = endState;
-                    return completeTransition();
-                }
-
                 promise = isArray(event)
-                    ? when.reduce(event, applyTransition, from).then(onResolve, completeTransition)
-                    : when(applyTransition(from, event), onResolve, completeTransition);
+                    ? when.reduce(event, applyTransition, from).then(completeTransition, completeTransition)
+                    : when(applyTransition(from, event), completeTransition, completeTransition);
 
                 return promise;
             },
