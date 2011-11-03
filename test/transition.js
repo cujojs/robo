@@ -2,24 +2,34 @@ var Machine, table, machine;
 
 Machine = require('../machina');
 table = {
-    start:'one',
+    start:'none',
     states:{
-        one:{
-            data:1,
-            transitions:{
-                gotoTwo:'two',
-                go:'two'
+        none: {
+            isFinal: true,
+            transitions: {
+                request: 'pending'
             }
         },
-        two:{
-            data:2,
-            transitions:{
-                gotoThree:'three',
-                go:'three'
+        pending: {
+            transitions: {
+                ignore: 'none',
+                block: 'blocked',
+                accept: 'accepted',
+                resend: 'pending',
+                remove: 'none'                
             }
         },
-        three:{
-            data:3
+        accepted: {
+            isFinal: true,
+            transitions: {
+                remove: 'none'
+            }
+        },
+        blocked: {
+            isFinal: true,
+            transitions: {
+                unblock: 'none'
+            }
         }
     }
 };
@@ -42,38 +52,8 @@ function expectedError(e) {
 
 machine = new Machine(table);
 
-console.log("MACHINE", machine);
+c1 = machine.start();
 
-var run1 = machine.start();
-var run2 = machine.start();
-
-run1.transition('gotoTwo')
-    .then(success, fail);
-
-run1 = machine.start();
-
-run1.transition('gotoTwo')
-    .then(function(r) { return r.transition('go'); })
-    .then(success, fail);
-
-run1 = machine.start();
-
-run1.transition('gotoTwo')
-    .then(function(r) { return run2.transition('go'); })
-    .then(function(r) {
-        console.log(run1.state);
-        console.log(run2.state);
-    });
-
-run1 = machine.start();
-
-run1.transition('error').then(fail, expectedError);
-
-machine.accepts(['go', 'go']).then(success, fail, progress);
-
-run1 = machine.start();
-run1.transition(['go', 'go', 'foo']).then(fail, expectedError, progress);
-
-run1 = machine.start();
-run1.transition('go');
-run1.transition('go').then(success, fail);
+c1.transition(['request', 'accept']).then(success, fail);
+c1.transition('remove').then(success, fail);
+//machine.accepts(['request', 'foo']).then(success, fail);

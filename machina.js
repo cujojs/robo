@@ -87,18 +87,20 @@ define(['./Evented', './support/when'], function(Evented, when) {
             states: states,
             
             available: function() {
-                var available, transitions, transition;
+                var available, transitions;//, transition;
                 
                 available = [];
                 transitions = this.state.transitions;
                 
                 for(var event in transitions) {
-                    transition = transitions[event];
+                    if(transitions.hasOwnProperty(event)) {
+//                        transition = transitions[event];
 
-                    // TODO: Add conditional transitions
-//                    if(!transition.condition || transition.condition()) {
-                        available.push(event);
-//                    }
+                        // TODO: Add conditional transitions
+//                        if (!transition.condition || transition.condition()) {
+                            available.push(event);
+//                        }
+                    }
                 }
                 
                 return available;
@@ -122,8 +124,8 @@ define(['./Evented', './support/when'], function(Evented, when) {
                     self.transition = origTransition;
                     return self;
                 }
-
-                function applyTransition(from, event) {
+                
+                function nextState(from, event) {
                     var available, transitions, to;
 
                     available = self.available();
@@ -136,6 +138,12 @@ define(['./Evented', './support/when'], function(Evented, when) {
                     } else if (available.length === 1) {
                         to = transitions[available[0]];
                     }
+                    
+                    return to;
+                }
+
+                function applyTransition(from, event) {
+                    var to = nextState(from, event);
 
                     return to
                         ? transition(from, event, states[to], self.emitter)
