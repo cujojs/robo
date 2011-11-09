@@ -5,44 +5,33 @@
     <script src="../Evented.js"></script>
     <script src="../Machine.js"></script>
     <script>
+
         var table, machine;
 
         table = {
-            start:'none',
-            states:{
-                none: {
-                    isFinal: true,
+            start: 'one',
+            states: {
+                one: {
+                    data: 1,
                     transitions: {
-                        request: 'pending'
+                        gotoTwo: 'two',
+                        go: 'two'
                     }
                 },
-                pending: {
+                two: {
+                    data: 2,
                     transitions: {
-                        ignore: 'none',
-                        block: 'blocked',
-                        accept: 'accepted',
-                        resend: 'pending',
-                        remove: 'none'
+                        go: 'three'
                     }
                 },
-                accepted: {
-                    isFinal: true,
-                    transitions: {
-                        remove: 'none'
-                    }
-                },
-                blocked: {
-                    isFinal: true,
-                    transitions: {
-                        unblock: 'none'
-                    }
+                three: {
+                    data: 3
                 }
             }
         };
 
         function fail(e) {
             console.error('ERROR', e);
-            console.trace(e);
         }
 
         function success(r) {
@@ -54,120 +43,58 @@
         }
 
         function expectedError(e) {
-            console.log('EXPECTED ERROR', e);
+            console.log('OK expected error', e);
         }
 
         machine = new Machine(table);
 
-        var events = new Evented();
-        events.on('request:start', progress);
-        events.on('request:end', progress);
+        var e = new Evented();
 
-        events.on('none:leave', progress);
-        events.on('pending:enter', progress);
-        events.on('pending:leave', progress);
+        var run1 = machine.start(e.emitter);
+        var run2 = machine.start(e.emitter);
 
-        events.on('accept:start', progress);
-        events.on('accept:end', progress);
+        e.on('one:leave', function() { console.log("leave one"); });
+        e.on('two:enter', function() { console.log("enter two"); });
+        e.on('gotoTwo:start', function() { console.log("START gotoTwo"); });
+        e.on('gotoTwo:end', function() { console.log('END gotoTwo'); });
 
-        c1 = machine.start(events.emitter);
+        run1.transition('gotoTwo').then(success, fail);
+        run1.transition().then(success, fail);
 
-        //c1.transition('request').then(success, fail);
-        //c1.transition('accept').then(success, fail);
+        run1 = machine.start();
 
-        c1.transition(['request', 'accept']).then(success, fail);
-        //c1.transition('remove').then(success, fail);
-        //machine.accepts(['request', 'foo']).then(success, fail);
-//
-//        var table, machine;
-//
-//        table = {
-//            start: 'one',
-//            states: {
-//                one: {
-//                    data: 1,
-//                    transitions: {
-//                        gotoTwo: 'two',
-//                        go: 'two'
-//                    }
-//                },
-//                two: {
-//                    data: 2,
-//                    transitions: {
-//                        go: 'three'
-//                    }
-//                },
-//                three: {
-//                    data: 3
-//                }
-//            }
-//        };
-//
-//        function fail(e) {
-//            console.error('ERROR', e);
-//        }
-//
-//        function success(r) {
-//            console.log('OK', r.state);
-//        }
-//
-//        function progress(p) {
-//            console.log('PROGRESS', p);
-//        }
-//
-//        function expectedError(e) {
-//            console.log('OK expected error', e);
-//        }
-//
-//        machine = new Machine(table);
-//
-//        var e = new Evented();
-//
-//        var run1 = machine.start(e.emitter);
-//        var run2 = machine.start(e.emitter);
-//
-//        e.on('one:leave', function() { console.log("leave one"); });
-//        e.on('two:enter', function() { console.log("enter two"); });
-//        e.on('gotoTwo:start', function() { console.log("START gotoTwo"); });
-//        e.on('gotoTwo:end', function() { console.log('END gotoTwo'); });
-//
-//        run1.transition('gotoTwo').then(success, fail);
-//        run1.transition().then(success, fail);
-//
-//        run1 = machine.start();
-//
-//        run1.transition('gotoTwo')
-//                .then(function(r) { return r.transition('go'); })
-//                .then(success, fail);
-//
-//        run1 = machine.start();
-//
-//        run1.transition('gotoTwo')
-//                .then(function(r) { return run2.transition('go'); })
-//                .then(function(r) {
-//                    console.log(run1.state);
-//                    console.log(run2.state);
-//                });
-//
-//        run1 = machine.start();
-//
-//        run1.transition('error').then(fail, expectedError);
-//
-//        machine.accepts(['go', 'go']).then(success, fail, progress);
-//        machine.accepts(['go', 'go', 'go']).then(fail, expectedError, progress);
-//
-//        run1 = machine.start();
-//        run1.transition('go');
-//        run1.transition('go').then(success, fail);
-//
-//        run1 = machine.start();
-//        run1.transition('go').then(success, fail);
-//        run1.transition('go').then(success, fail);
-//        run1.transition('go').then(fail, expectedError);
-//
-//        run1 = machine.start('two');
-//        run1.transition().then(success, fail);
-//        run1.transition().then(fail, expectedError);
+        run1.transition('gotoTwo')
+                .then(function(r) { return r.transition('go'); })
+                .then(success, fail);
+
+        run1 = machine.start();
+
+        run1.transition('gotoTwo')
+                .then(function(r) { return run2.transition('go'); })
+                .then(function(r) {
+                    console.log(run1.state);
+                    console.log(run2.state);
+                });
+
+        run1 = machine.start();
+
+        run1.transition('error').then(fail, expectedError);
+
+        machine.accepts(['go', 'go']).then(success, fail, progress);
+        machine.accepts(['go', 'go', 'go']).then(fail, expectedError, progress);
+
+        run1 = machine.start();
+        run1.transition('go');
+        run1.transition('go').then(success, fail);
+
+        run1 = machine.start();
+        run1.transition('go').then(success, fail);
+        run1.transition('go').then(success, fail);
+        run1.transition('go').then(fail, expectedError);
+
+        run1 = machine.start('two');
+        run1.transition().then(success, fail);
+        run1.transition().then(fail, expectedError);
     </script>
 </head>
 <body>
