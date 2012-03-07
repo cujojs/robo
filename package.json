@@ -1,0 +1,42 @@
+{
+    "name": "robo",
+    "version": "0.1.0",
+    "description": "An asynchronous state machine",
+    "keywords": ["state-machine", "async", "promises"],
+    "licenses": [
+        {
+            "type": "MIT",
+            "url": "http://www.opensource.org/licenses/mit-license.php"
+        }
+    ],
+    "repositories": [
+        {
+            "type": "git",
+            "url": "https://github.com/cujojs/robo"
+        }
+    ],
+    "bugs": "https://github.com/cujojs/robo/issues",
+    "maintainers": [
+        {
+            "name": "Brian Cavalier",
+            "web": "http://hovercraftstudios.com"
+        }
+    ],
+    "contributors": [
+        {
+            "name": "Brian Cavalier",
+            "web": "http://hovercraftstudios.com"
+        },
+        {
+            "name": "John Hann",
+            "web": "http://unscriptable.com"
+        }
+    ],
+    "dependencies": {
+        "when": "git://github.com/cujojs/when#1.0.2"
+    },
+    "main": "./Machine",
+    "directories": {
+        "test": "test"
+    }
+}
