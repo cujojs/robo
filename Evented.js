@@ -1,6 +1,6 @@
 (function(define) {
 
-define(['./support/when'], function(when) {
+define(['when'], function(when) {
 
     var undef;
     
@@ -28,14 +28,16 @@ define(['./support/when'], function(when) {
     function emit(event, data) {
         var events, handlers, result;
         events = this._evented;
+        result = data;
 
         if (events) {
             handlers = events[event];
 
             if (handlers) {
                 result = when.reduce(handlers, function(val, handler) {
-                    handler(val);
-                    return val;
+                    return when(handler(val), function() {
+                        return val;
+                    });
                 }, data);
             }
         }

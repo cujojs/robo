@@ -1,6 +1,8 @@
 (function(define) {
 
-define(['./Evented', './support/when'], function(Evented, when) {
+define(['./Evented', 'when'], function(Evented, when) {
+
+    var undef;
 
     var isArray = Array.isArray || function(it) {
         return it && (it instanceof Array || typeof it === 'array');
@@ -71,8 +73,7 @@ define(['./Evented', './support/when'], function(Evented, when) {
             return to
                 ? when.reduce(steps,
                     function(val, nextStep) {
-                        var next = nextStep(val);
-                        return next;
+                        return nextStep(val);
                     }, { from: from, to: to, event: event }).then(function() { return to; })
                 : rejected(event);
 
@@ -152,7 +153,9 @@ define(['./Evented', './support/when'], function(Evented, when) {
 
                     return to
                         ? transition(from, event, states[to], self.emitter).then(
-                            function(to) { self.state = to; }
+                            function(to) {
+                                self.state = to; return to;
+                            }
                         )
                         : rejected(event);
                 }
@@ -170,6 +173,8 @@ define(['./Evented', './support/when'], function(Evented, when) {
         };
         
         this.start = function(start, eventEmitter) {
+            var run;
+
             if (typeof start === 'function') {
                 eventEmitter = start;
                 start = states[stateTable.start];
@@ -178,7 +183,10 @@ define(['./Evented', './support/when'], function(Evented, when) {
             }
 
             Run.prototype = blueprint;
-            return new Run(start, eventEmitter);
+            run = new Run(start, eventEmitter);
+            Run.prototype = undef;
+
+            return run;
         };
 
     }
