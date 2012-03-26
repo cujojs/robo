@@ -63,22 +63,18 @@ define(['./Evented', 'when'], function(Evented, when) {
 			// TODO: Consider using deferred progress events instead of or
 			// in addition to an event emitter
 			function transitionStart(data) {
-//				console.log('start', data);
 				return emitter ? emitter(event + ":start", data) : data;
 			}
 
 			function leaveFrom(data) {
-//				console.log('leave', data);
 				return emitter ? emitter(from.name+':leave', data) : data;
 			}
 
 			function enterTo(data) {
-//				console.log('enter', data);
 				return emitter ? emitter(to.name+':enter', data) : data;
 			}
 
 			function transitionEnd(data) {
-//				console.log('end', data);
 				return emitter ? emitter(event+':end', data) : data;
 			}
 
