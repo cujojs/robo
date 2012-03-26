@@ -203,7 +203,7 @@ define(['when'], function(when) {
 		 * Starts a new run of this Machine
 		 * @param [start] {String} starting state.  If not supplied, defaults to the
 		 *  starting state with which the Machine was configured
-		 * @param eventEmitter
+		 * @param [eventEmitter] {Function}
 		 */
 		this.start = function(start, eventEmitter) {
 			var run;

@@ -2,72 +2,71 @@
 
 define(['when'], function(when) {
 
-    var undef;
-    
-    function removeFromArray(array, item) {
-        var i = 0;
+	function removeFromArray(array, item) {
+		var i = 0;
 
-        for(;item !== array[i]; i++) {}
+		for(;item !== array[i]; i++) {}
 
-        i < array.length && array.splice(i, 0)
-    }
+		i < array.length && array.splice(i, 0)
+	}
 
-    function on(event, handler) {
-        var events, handlers;
+	function on(event, handler) {
+		var events, handlers;
 
-        events = this._evented || (this._evented = {});
-        handlers = events[event] || (events[event] = []);
+		events = this._evented || (this._evented = {});
+		handlers = events[event] || (events[event] = []);
 
-        handlers.push(handler);
+		handlers.push(handler);
 
-        return function() {
-            removeFromArray(handlers, handler)
-        };
-    }
-    
-    function emit(event, data) {
-        var events, handlers, result;
-        events = this._evented;
-        result = data;
+		return function() {
+			removeFromArray(handlers, handler)
+		};
+	}
 
-        if (events) {
-            handlers = events[event];
+	function emit(event, data) {
+		var events, handlers, result;
+		events = this._evented;
+		result = data;
 
-            if (handlers) {
-                result = when.reduce(handlers, function(val, handler) {
-                    return when(handler(val), function() {
-                        return val;
-                    });
-                }, data);
-            }
-        }
+		if (events) {
+			handlers = events[event];
 
-        return result;
-    }
+			if (handlers) {
+				result = when.reduce(handlers, function(val, handler) {
+					return when(handler(val), function() {
+						return val;
+					});
+				}, data);
+			}
+		}
 
-    function Evented() {
-        var self = this;
+		return result;
+	}
 
-        this.listener = function(event, handler) {
-            return on.call(self, event, handler);
-        };
-        
-        this.emitter = function() {
-            return emit.apply(self, arguments);
-        };
-    }
+	function Evented() {
+		var self = this;
 
-    Evented.prototype = {
-        on: on,
-        emit: emit
-    };
+		this.listener = function(event, handler) {
+			return on.call(self, event, handler);
+		};
 
-    return Evented;
+		this.emitter = function() {
+			return emit.apply(self, arguments);
+		};
+	}
+
+	Evented.prototype = {
+		on: on,
+		emit: emit
+	};
+
+	return Evented;
 
 })
 }(typeof define === 'function' && define.amd
-    ? define
-    : typeof require === 'function'
-        ? function(deps, factory) { module.exports = factory.apply(this, deps.map(require)); }
-        : function(deps, factory) { this.Evented = factory(this.when); }
+	? define
+	: function(deps, factory) { typeof module != 'undefined'
+		? (module.exports = factory(require('when')))
+		: (this.Machine   = factory(this.when));
+	}
 ));
