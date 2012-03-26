@@ -1,6 +1,6 @@
 (function(define) {
 
-define(['./Evented', 'when'], function(Evented, when) {
+define(['when'], function(when) {
 
 	var undef;
 
@@ -52,7 +52,7 @@ define(['./Evented', 'when'], function(Evented, when) {
 	 * @param stateTable {Object} the state and transition definitions
 	 */
 	function Machine(stateTable) {
-		var self, blueprint, stateDefs, states, state, inflightTransition;
+		var self, blueprint, stateDefs, states, state;
 
 		self = this;
 		stateDefs = stateTable.states;
@@ -147,7 +147,7 @@ define(['./Evented', 'when'], function(Evented, when) {
 					return self;
 				}
 
-				inflightTransition = when(inflightTransition, function() {
+				this.inflightTransition = when(this.inflightTransition, function() {
 
 					var from = self.state;
 
@@ -188,7 +188,7 @@ define(['./Evented', 'when'], function(Evented, when) {
 
 				});
 
-				return inflightTransition;
+				return this.inflightTransition;
 			},
 
 			/**
@@ -239,7 +239,7 @@ define(['./Evented', 'when'], function(Evented, when) {
 
 			return run.transition(events).then(
 				function(run) {
-					return run.isFinal() ? run : rejected(run)
+					return run.isFinal() ? run.state : rejected(run.state)
 				});
 		}
 	};
@@ -248,8 +248,9 @@ define(['./Evented', 'when'], function(Evented, when) {
 });
 }(typeof define === 'function' && define.amd
 	? define
-	: typeof require === 'function'
-		? function(deps, factory) { module.exports = factory.apply(this, deps.map(require)); }
-		: function(deps, factory) { this.Machine = factory(this.Evented, this.when); }
+	: function(deps, factory) { typeof module != 'undefined'
+			? (module.exports = factory(require('when')))
+			: (this.Machine   = factory(this.when));
+	}
 ));
 
