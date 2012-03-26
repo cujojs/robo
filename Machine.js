@@ -52,7 +52,7 @@ define(['./Evented', 'when'], function(Evented, when) {
 	 * @param stateTable {Object} the state and transition definitions
 	 */
 	function Machine(stateTable) {
-		var self, blueprint, stateDefs, states, state;
+		var self, blueprint, stateDefs, states, state, inflightTransition;
 
 		self = this;
 		stateDefs = stateTable.states;
@@ -63,27 +63,35 @@ define(['./Evented', 'when'], function(Evented, when) {
 			// TODO: Consider using deferred progress events instead of or
 			// in addition to an event emitter
 			function transitionStart(data) {
+//				console.log('start', data);
 				return emitter ? emitter(event + ":start", data) : data;
 			}
 
 			function leaveFrom(data) {
+//				console.log('leave', data);
 				return emitter ? emitter(from.name+':leave', data) : data;
 			}
 
 			function enterTo(data) {
+//				console.log('enter', data);
 				return emitter ? emitter(to.name+':enter', data) : data;
 			}
 
 			function transitionEnd(data) {
+//				console.log('end', data);
 				return emitter ? emitter(event+':end', data) : data;
 			}
 
 			var steps = [transitionStart, leaveFrom, enterTo, transitionEnd];
+
 			return to
 				? when.reduce(steps,
 					function(val, nextStep) {
 						return nextStep(val);
-					}, { from: from, to: to, event: event }).then(function() { return to; })
+					}, { from: from, to: to, event: event })
+					.then(function() {
+						return to;
+					})
 				: rejected(event);
 
 		}
@@ -135,57 +143,56 @@ define(['./Evented', 'when'], function(Evented, when) {
 			 */
 			transition: function(event) {
 
-				var self, from, origTransition, promise;
+				var self;//, from, origTransition;
 
 				self = this;
-				from = this.state;
-
-				origTransition = this.transition;
-				this.transition = function(event) {
-					return when(promise, function() {
-						return origTransition(event);
-					});
-				};
 
 				function completeTransition() {
-					self.transition = origTransition;
 					return self;
 				}
 
-				function nextState(from, event) {
-					var allowed, transitions, to;
+				inflightTransition = when(inflightTransition, function() {
 
-					allowed = available(from);
-					transitions = from.transitions;
+					var from = self.state;
 
-					if(event) {
-						if (allowed.indexOf(event) >= 0) {
-							to = transitions[event];
+					function nextState(from, event) {
+						var allowed, transitions, to;
+
+						allowed = available(from);
+						transitions = from.transitions;
+
+						if(event) {
+							if (allowed.indexOf(event) >= 0) {
+								to = transitions[event];
+							}
+						} else if (allowed.length === 1) {
+							to = transitions[allowed[0]];
 						}
-					} else if (allowed.length === 1) {
-						to = transitions[allowed[0]];
+
+						return to;
 					}
 
-					return to;
-				}
+					function applyTransition(from, event) {
+						var to = nextState(from, event);
 
-				function applyTransition(from, event) {
-					var to = nextState(from, event);
+						return to
+							? transition(from, event, states[to], self.emitter)
+							.then(
+								function(to) {
+									self.state = to;
+									return to;
+								}
+							)
+							: rejected(event);
+					}
 
-					return to
-						? transition(from, event, states[to], self.emitter).then(
-							function(to) {
-								self.state = to; return to;
-							}
-						)
-						: rejected(event);
-				}
+					return isArray(event)
+						? when.reduce(event, applyTransition, from).then(completeTransition, completeTransition)
+						: when(applyTransition(from, event), completeTransition, completeTransition);
 
-				promise = isArray(event)
-					? when.reduce(event, applyTransition, from).then(completeTransition, completeTransition)
-					: when(applyTransition(from, event), completeTransition, completeTransition);
+				});
 
-				return promise;
+				return inflightTransition;
 			},
 
 			/**
