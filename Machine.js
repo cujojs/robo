@@ -2,212 +2,251 @@
 
 define(['./Evented', 'when'], function(Evented, when) {
 
-    var undef;
+	var undef;
 
-    var isArray = Array.isArray || function(it) {
-        return it && (it instanceof Array || typeof it === 'array');
-    };
+	var isArray = Array.isArray || function(it) {
+		return Object.prototype.toString.call(it) == '[object Array]';
+	};
 
-    function rejected(reason) {
-        var d = when.defer();
-        d.reject(reason);
-        return d.promise;
-    }
+	function rejected(reason) {
+		var d = when.defer();
+		d.reject(reason);
+		return d.promise;
+	}
 
-    function createState(name, stateDef) {
-        var state, transitions, event;
+	function createState(name, stateDef) {
+		var state, transitions, event;
 
-        transitions = stateDef.transitions;
-        state = {
-            name: name,
-            isFinal: !transitions || !!stateDef.isFinal,
-            transitions: {}
-        };
+		transitions = stateDef.transitions;
+		state = {
+			name: name,
+			isFinal: !transitions || !!stateDef.isFinal,
+			transitions: {}
+		};
 
-        if(transitions) {
-            for(event in transitions) {
-                if(transitions.hasOwnProperty(event)) {
-                    state.transitions[event] = transitions[event];
-                }
-            }
-        }
+		if(transitions) {
+			for(event in transitions) {
+				if(transitions.hasOwnProperty(event)) {
+					state.transitions[event] = transitions[event];
+				}
+			}
+		}
 
-        return state;
-    }
+		return state;
+	}
 
-    function Run(start, emitter) {
-        this.state = start;
-        this.emitter = emitter;
-    }
+	/**
+	 * A Run is one execution of a Machine
+	 * @constructor
+	 * @param start {String} Machine starting state
+	 * @param emitter {Function} function to be invoked with event notifications
+	 */
+	function Run(start, emitter) {
+		this.state = start;
+		this.emitter = emitter;
+	}
 
-    /**
-     * Creates a state machine
-     * @param stateTable {Object} the state and transition definitions
-     */
-    function Machine(stateTable) {
-        var self, blueprint, stateDefs, states, state;
+	/**
+	 * Creates a state machine
+	 * @constructor
+	 * @param stateTable {Object} the state and transition definitions
+	 */
+	function Machine(stateTable) {
+		var self, blueprint, stateDefs, states, state;
 
-        self = this;
-        stateDefs = stateTable.states;
-        states = {};
+		self = this;
+		stateDefs = stateTable.states;
+		states = {};
 
-        function transition(from, event, to, emitter) {
+		function transition(from, event, to, emitter) {
 
-            function transitionStart(data) {
-                return emitter ? emitter(event + ":start", data) : data;
-            }
+			// TODO: Consider using deferred progress events instead of or
+			// in addition to an event emitter
+			function transitionStart(data) {
+				return emitter ? emitter(event + ":start", data) : data;
+			}
 
-            function leaveFrom(data) {
-                return emitter ? emitter(from.name+':leave', data) : data;
-            }
+			function leaveFrom(data) {
+				return emitter ? emitter(from.name+':leave', data) : data;
+			}
 
-            function enterTo(data) {
-                return emitter ? emitter(to.name+':enter', data) : data;
-            }
+			function enterTo(data) {
+				return emitter ? emitter(to.name+':enter', data) : data;
+			}
 
-            function transitionEnd(data) {
-                return emitter ? emitter(event+':end', data) : data;
-            }
+			function transitionEnd(data) {
+				return emitter ? emitter(event+':end', data) : data;
+			}
 
-            var steps = [transitionStart, leaveFrom, enterTo, transitionEnd];
-            return to
-                ? when.reduce(steps,
-                    function(val, nextStep) {
-                        return nextStep(val);
-                    }, { from: from, to: to, event: event }).then(function() { return to; })
-                : rejected(event);
+			var steps = [transitionStart, leaveFrom, enterTo, transitionEnd];
+			return to
+				? when.reduce(steps,
+					function(val, nextStep) {
+						return nextStep(val);
+					}, { from: from, to: to, event: event }).then(function() { return to; })
+				: rejected(event);
 
-        }
-        
-        function available(state) {
-            var available, transitions;//, transition;
-            
-            available = [];
-            transitions = state.transitions;
-            
-            for(var event in transitions) {
-                if(transitions.hasOwnProperty(event)) {
-//                        transition = transitions[event];
+		}
 
-                    // TODO: Add conditional transitions
-//                        if (!transition.condition || transition.condition()) {
-                        available.push(event);
-//                        }
-                }
-            }
-            
-            return available;
-        }
+		function available(state) {
+			var available, transitions;
 
-        for(state in stateDefs) {
-            if(stateDefs.hasOwnProperty(state)) {
-                states[state] = createState(state, stateDefs[state]);
-            }
-        }
-        
-        blueprint = {
-            states: states,
-            
-            available: function() {
-                return available(this.state);
-            },
-            
-            transition: function(event) {
+			available = [];
+			transitions = state.transitions;
 
-                var self, from, origTransition, promise;
+			for(var event in transitions) {
+				if(transitions.hasOwnProperty(event)) {
+					// TODO: Add conditional transitions
+					available.push(event);
+				}
+			}
 
-                self = this;
-                from = this.state;
+			return available;
+		}
 
-                origTransition = this.transition;
-                this.transition = function(event) {
-                    return when(promise, function() {
-                        return origTransition(event);
-                    });
-                };
+		for(state in stateDefs) {
+			if(stateDefs.hasOwnProperty(state)) {
+				states[state] = createState(state, stateDefs[state]);
+			}
+		}
 
-                function completeTransition() {
-                    self.transition = origTransition;
-                    return self;
-                }
-                
-                function nextState(from, event) {
-                    var allowed, transitions, to;
+		/**
+		 * The blueprint (states, events, transitions) of this Machine
+		 */
+		blueprint = {
+			states: states,
 
-                    allowed = available(from);
-                    transitions = from.transitions;
+			/**
+			 * Returns the valid set of transitions that can be taken from
+			 * the current state.
+			 *
+			 * @return {Array}
+			 */
+			available: function() {
+				return available(this.state);
+			},
 
-                    if(event) {
-                        if (allowed.indexOf(event) >= 0) {
-                            to = transitions[event];
-                        }
-                    } else if (allowed.length === 1) {
-                        to = transitions[allowed[0]];
-                    }
-                    
-                    return to;
-                }
+			/**
+			 * Transition from the current state to a new state
+			 * @param event {String|Array} event name or sequence of event names of the transition(s) to make.
+			 *  If event is an Array of Strings, they will be applied in order.  If the sequence of events
+			 *  is NOT a valid transition, the returned promise will reject.
+			 * @return {Promise} a promise that will resolve when the transition has completed
+			 */
+			transition: function(event) {
 
-                function applyTransition(from, event) {
-                    var to = nextState(from, event);
+				var self, from, origTransition, promise;
 
-                    return to
-                        ? transition(from, event, states[to], self.emitter).then(
-                            function(to) {
-                                self.state = to; return to;
-                            }
-                        )
-                        : rejected(event);
-                }
+				self = this;
+				from = this.state;
 
-                promise = isArray(event)
-                    ? when.reduce(event, applyTransition, from).then(completeTransition, completeTransition)
-                    : when(applyTransition(from, event), completeTransition, completeTransition);
+				origTransition = this.transition;
+				this.transition = function(event) {
+					return when(promise, function() {
+						return origTransition(event);
+					});
+				};
 
-                return promise;
-            },
+				function completeTransition() {
+					self.transition = origTransition;
+					return self;
+				}
 
-            isFinal: function() {
-                return this.state.isFinal;
-            }
-        };
-        
-        this.start = function(start, eventEmitter) {
-            var run;
+				function nextState(from, event) {
+					var allowed, transitions, to;
 
-            if (typeof start === 'function') {
-                eventEmitter = start;
-                start = states[stateTable.start];
-            } else {
-                start = states[start || stateTable.start];
-            }
+					allowed = available(from);
+					transitions = from.transitions;
 
-            Run.prototype = blueprint;
-            run = new Run(start, eventEmitter);
-            Run.prototype = undef;
+					if(event) {
+						if (allowed.indexOf(event) >= 0) {
+							to = transitions[event];
+						}
+					} else if (allowed.length === 1) {
+						to = transitions[allowed[0]];
+					}
 
-            return run;
-        };
+					return to;
+				}
 
-    }
+				function applyTransition(from, event) {
+					var to = nextState(from, event);
 
-    Machine.prototype = {
-        accepts: function(events) {
-            var run = this.start();
-            
-            return run.transition(events).then(
-                function(run) {
-                    return run.isFinal() ? run : rejected(run)
-                });
-        }
-    };
+					return to
+						? transition(from, event, states[to], self.emitter).then(
+							function(to) {
+								self.state = to; return to;
+							}
+						)
+						: rejected(event);
+				}
 
-    return Machine;
+				promise = isArray(event)
+					? when.reduce(event, applyTransition, from).then(completeTransition, completeTransition)
+					: when(applyTransition(from, event), completeTransition, completeTransition);
+
+				return promise;
+			},
+
+			/**
+			 * @return {Boolean} true iff the current state is a final state
+			 */
+			isFinal: function() {
+				return this.state.isFinal;
+			}
+		};
+
+		/**
+		 * Starts a new run of this Machine
+		 * @param [start] {String} starting state.  If not supplied, defaults to the
+		 *  starting state with which the Machine was configured
+		 * @param eventEmitter
+		 */
+		this.start = function(start, eventEmitter) {
+			var run;
+
+			if (typeof start === 'function') {
+				eventEmitter = start;
+				start = states[stateTable.start];
+			} else {
+				start = states[start || stateTable.start];
+			}
+
+			Run.prototype = blueprint;
+			run = new Run(start, eventEmitter);
+			Run.prototype = undef;
+
+			return run;
+		};
+
+	}
+
+	Machine.prototype = {
+		/**
+		 * Determines if the supplied sequence of events causes a transition that
+		 * ends in a final state.
+		 * @param events {Array|String} sequence of events, or a single event
+		 * @return {Promise} a promise that resolves if the supplied sequence of
+		 * event represent a valid transition that ends at a final state, and rejects
+		 * if either the squence of events is not valid, or the ending state is not
+		 * final.
+		 */
+		accepts: function(events) {
+			var run = this.start();
+
+			return run.transition(events).then(
+				function(run) {
+					return run.isFinal() ? run : rejected(run)
+				});
+		}
+	};
+
+	return Machine;
 });
 }(typeof define === 'function' && define.amd
-    ? define
-    : typeof require === 'function'
-        ? function(deps, factory) { module.exports = factory.apply(this, deps.map(require)); }
-        : function(deps, factory) { this.Machine = factory(this.Evented, this.when); }
+	? define
+	: typeof require === 'function'
+		? function(deps, factory) { module.exports = factory.apply(this, deps.map(require)); }
+		: function(deps, factory) { this.Machine = factory(this.Evented, this.when); }
 ));
 

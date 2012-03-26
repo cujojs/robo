@@ -67,9 +67,9 @@ events.on('accept:end', progress);
 
 c1 = machine.start(events.emitter);
 
-//c1.transition('request').then(success, fail);
-//c1.transition('accept').then(success, fail);
+c1.transition('request').then(success, fail);
+c1.transition('accept').then(success, fail);
 
-c1.transition(['request', 'accept']).then(success, fail);
-//c1.transition('remove').then(success, fail);
+//c1.transition(['request', 'accept']).then(success, fail);
+c1.transition('remove').then(success, fail);
 //machine.accepts(['request', 'foo']).then(success, fail);
